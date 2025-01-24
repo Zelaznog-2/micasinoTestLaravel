@@ -134,16 +134,18 @@ class PaymentController extends Controller
             $transition->currency = $request->currency;
             $transition->save();
 
-            $resultResponse = null;
             if ($request['pay-method'] == 'easymoney') {
                 $resultResponse = $this->payEasyMoney($transition->amount, $transition->currency);
+                if ($resultResponse) {
+                    $transition->status = $resultResponse;
+                    $transition->save();
+                }
             } else if ($request[' pay-method'] == 'superwalletz' ){
-                $resultResponse = $this->paySuperWalletz($transition->amount, $transition->currency, $transition->id);
+                $this->paySuperWalletz($transition->amount, $transition->currency, $transition->id);
             }
 
-            dd($resultResponse);
 
-            $transition->save();
+
             DB::commit();
 
             return redirect()->route('home')->with('success', 'Payment processed successfully');
