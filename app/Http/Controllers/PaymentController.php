@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\Transitions;
 use App\Models\Request as RequestModel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
 
 
 class PaymentController extends Controller
@@ -13,10 +15,10 @@ class PaymentController extends Controller
 
     private function saveRequest($request) {
         $requestModel = new RequestModel();
-        $requestModel->name = $request->name;
-        $requestModel->url = $request->url;
-        $requestModel->method = $request->method;
-        $requestModel->data = $request->data;
+        $requestModel->name = $request['name'];
+        $requestModel->url = $request['url'];
+        $requestModel->method = $request['method'];
+        $requestModel->data = $request['data'];
         $requestModel->save();
     }
 
@@ -45,12 +47,13 @@ class PaymentController extends Controller
         ));
         $response = curl_exec($curl);
         $request = [
-            'name' => 'POST',
+            'name' => $data['name'],
             'url' => $url,
             'method' => 'POST',
             'data' => json_encode($data),
         ];
         $this->saveRequest($request);
+        Log::info('Request saved', ["response" =>$response]);
         curl_close($curl);
         return $response;
     }
@@ -65,7 +68,8 @@ class PaymentController extends Controller
     private function payEasyMoney( $amount, $currency) {
         $url = "http://localhost:3000/process";
         $data = [
-            "amount" => $amount,
+            "name" => "EasyMoney",
+            "amount" => floatval($amount),
             "currency" => $currency,
         ];
         $response = $this->makeRequest($url, $data);
@@ -84,7 +88,8 @@ class PaymentController extends Controller
     private function paySuperWalletz( $amount, $currency, $transactionId) {
         $url = "http://localhost:3003/pay";
         $data = [
-            "amount" => $amount,
+            "name" => "SuperWalletz",
+            "amount" => floatval($amount),
             "currency" => $currency,
             "callback_url" => route('webhook', $transactionId)
         ];
@@ -107,6 +112,7 @@ class PaymentController extends Controller
         $requestModel->status = $request->status;
         $requestModel->data = $request->all();
         $requestModel->save();
+        Log::info('Webhook received', ['request' => $request->all()]);
         return response()->json(['message' => 'Webhook received']);
     }
 
@@ -128,7 +134,7 @@ class PaymentController extends Controller
             // Guardar los datos en la base de datos
             DB::beginTransaction();
             $transition = new Transitions();
-            $transition->name = $request['pay-method'];
+            $transition->type_payment = $request['pay-method'];
             $transition->amount = $request->amount;
             $transition->status = 'pending';
             $transition->currency = $request->currency;
@@ -140,16 +146,15 @@ class PaymentController extends Controller
                     $transition->status = $resultResponse;
                     $transition->save();
                 }
-            } else if ($request[' pay-method'] == 'superwalletz' ){
-                $this->paySuperWalletz($transition->amount, $transition->currency, $transition->id);
+            } else if ($request['pay-method'] == 'superwalletz' ){
+                $resultResponse = $this->paySuperWalletz($transition->amount, $transition->currency, $transition->id);
             }
 
+            DB::commit(); # commit transaction if successful
 
-
-            DB::commit();
-
-            return redirect()->route('home')->with('success', 'Payment processed successfully');
+            return redirect()->route('home')->with('success', "Payment N° $transition->id processed $resultResponse");
         } catch (\Throwable $th) {
+            Log::error('Error processing transaction', ["error" => $th]);
             DB::rollBack();
             return redirect()->route('home')->with('error', 'An error occurred while processing the payment');
         }

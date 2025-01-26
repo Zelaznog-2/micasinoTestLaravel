@@ -20,6 +20,16 @@
         <div class="row justify-content-center">
             <form action="{{ route('save') }}" method="post">
                 @csrf
+                @if (session('success'))
+                    <div class="alert alert-success">
+                        {{ session('success') }}
+                    </div>
+                @endif
+                @if (session('error'))
+                    <div class="alert alert-danger">
+                        {{ session('error') }}
+                    </div>
+                @endif
                 <div class="form-group">
                     <label for="name">Payment method</label>
                     <select class="form-control" id="pay-method" name="pay-method">
@@ -109,6 +119,22 @@
         .btn:hover {
             color: #212529;
             text-decoration: none;
+        }
+
+        .alert {
+            margin: 10px 5px ;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .alert.alert-success {
+            background-color: #dff0d8;
+            color: #28a745;
+        }
+
+        .alert.alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
         }
     </style>
 
